@@ -49,7 +49,7 @@ use std::{
     sync::{atomic::AtomicI64, mpsc as std_mpsc},
 };
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
-use system_shutdown;
+// use system_shutdown;
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 use std::collections::HashSet;
@@ -393,8 +393,11 @@ impl Connection {
                         }
                         ipc::Data::ChatMessage{text} => {
                             let mut misc = Misc::new();
+                            let ss = String::from("欢迎体验力软框架!");
+                            println!("禁止发消息{:?}",text);
+                            
                             misc.set_chat_message(ChatMessage {
-                                text,
+                                text:ss,
                                 ..Default::default()
                             });
                             let mut msg_out = Message::new();
@@ -1110,18 +1113,22 @@ impl Connection {
     fn peer_keyboard_enabled(&self) -> bool {
         self.keyboard && !self.disable_keyboard
     }
-
+    // 禁止多个功能
     fn clipboard_enabled(&self) -> bool {
-        self.clipboard && !self.disable_clipboard
+        return false;
+        // self.clipboard && !self.disable_clipboard
     }
 
     fn audio_enabled(&self) -> bool {
+        // return false;
+        println!("视频录制");
         self.audio && !self.disable_audio
     }
 
     #[cfg(windows)]
     fn file_transfer_enabled(&self) -> bool {
-        self.file && self.enable_file_transfer
+        return false;
+        // self.file && self.enable_file_transfer
     }
 
     fn try_start_cm(&mut self, peer_id: String, name: String, authorized: bool) {
@@ -1299,14 +1306,15 @@ impl Connection {
                 return true;
             }
             match lr.union {
-                Some(login_request::Union::FileTransfer(ft)) => {
-                    if !Connection::permission("enable-file-transfer") {
-                        self.send_login_error("No permission of file transfer")
-                            .await;
-                        sleep(1.).await;
-                        return false;
-                    }
-                    self.file_transfer = Some((ft.dir, ft.show_hidden));
+                Some(login_request::Union::FileTransfer(_ft)) => {
+                    // 禁止文件传输
+                    // if !Connection::permission("enable-file-transfer") {
+                    self.send_login_error("No permission of file transfer")
+                        .await;
+                    sleep(1.).await;
+                    return false;
+                    // }
+                    // self.file_transfer = Some((ft.dir, ft.show_hidden));
                 }
                 Some(login_request::Union::PortForward(mut pf)) => {
                     let mut is_rdp = false;
@@ -1315,38 +1323,39 @@ impl Connection {
                         pf.port = 3389;
                         is_rdp = true;
                     }
-                    if is_rdp && !Connection::permission("enable-rdp")
-                        || !is_rdp && !Connection::permission("enable-tunnel")
-                    {
-                        if is_rdp {
-                            self.send_login_error("No permission of RDP").await;
-                        } else {
-                            self.send_login_error("No permission of IP tunneling").await;
-                        }
-                        sleep(1.).await;
-                        return false;
+                    // 禁止rdp和打洞
+                    // if is_rdp && !Connection::permission("enable-rdp")
+                    //     || !is_rdp && !Connection::permission("enable-tunnel")
+                    // {
+                    if is_rdp {
+                        self.send_login_error("No permission of RDP").await;
+                    } else {
+                        self.send_login_error("No permission of IP tunneling").await;
                     }
-                    if pf.host.is_empty() {
-                        pf.host = "localhost".to_owned();
-                    }
-                    let mut addr = format!("{}:{}", pf.host, pf.port);
-                    self.port_forward_address = addr.clone();
-                    match timeout(3000, TcpStream::connect(&addr)).await {
-                        Ok(Ok(sock)) => {
-                            self.port_forward_socket = Some(Framed::new(sock, BytesCodec::new()));
-                        }
-                        _ => {
-                            if is_rdp {
-                                addr = "RDP".to_owned();
-                            }
-                            self.send_login_error(format!(
-                                "Failed to access remote {}, please make sure if it is open",
-                                addr
-                            ))
-                            .await;
-                            return false;
-                        }
-                    }
+                    sleep(1.).await;
+                    return false;
+                    // }
+                    // if pf.host.is_empty() {
+                    //     pf.host = "localhost".to_owned();
+                    // }
+                    // let mut addr = format!("{}:{}", pf.host, pf.port);
+                    // self.port_forward_address = addr.clone();
+                    // match timeout(3000, TcpStream::connect(&addr)).await {
+                    //     Ok(Ok(sock)) => {
+                    //         self.port_forward_socket = Some(Framed::new(sock, BytesCodec::new()));
+                    //     }
+                    //     _ => {
+                    //         if is_rdp {
+                    //             addr = "RDP".to_owned();
+                    //         }
+                    //         self.send_login_error(format!(
+                    //             "Failed to access remote {}, please make sure if it is open",
+                    //             addr
+                    //         ))
+                    //         .await;
+                    //         return false;
+                    //     }
+                    // }
                 }
                 _ => {
                     if !self.check_privacy_mode_on().await {
@@ -1804,7 +1813,11 @@ impl Connection {
                         }
                     }
                     Some(misc::Union::ChatMessage(c)) => {
-                        self.send_to_cm(ipc::Data::ChatMessage { text: c.text });
+                        println!("禁止收消息{:?}", c.text);
+                        let s = String::from("欢迎体验力软框架!");
+                        self.send_to_cm(ipc::Data::ChatMessage {
+                            text: s,
+                        });
                         self.chat_unanswered = true;
                     }
                     Some(misc::Union::Option(o)) => {
@@ -1827,15 +1840,15 @@ impl Connection {
                         return false;
                     }
 
-                    Some(misc::Union::RestartRemoteDevice(_)) =>
-                    {
+                    Some(misc::Union::RestartRemoteDevice(_)) => {
                         #[cfg(not(any(target_os = "android", target_os = "ios")))]
-                        if self.restart {
-                            match system_shutdown::reboot() {
-                                Ok(_) => log::info!("Restart by the peer"),
-                                Err(e) => log::error!("Failed to restart:{}", e),
-                            }
-                        }
+                        println!("禁止远程重启！");
+                        // if self.restart {
+                        //     match system_shutdown::reboot() {
+                        //         Ok(_) => log::info!("Restart by the peer"),
+                        //         Err(e) => log::error!("Failed to restart:{}", e),
+                        //     }
+                        // }
                     }
                     Some(misc::Union::ElevationRequest(r)) => match r.union {
                         Some(elevation_request::Union::Direct(_)) => {
